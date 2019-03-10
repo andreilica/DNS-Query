@@ -1,0 +1,43 @@
+===========================================================================================================
+
+												CERINTA
+
+===========================================================================================================
+
+Clientul DNS implementat pentru aceasta tema este un program C/C++ care functioneaz ca un resolver
+DNS,  folosind  cereri  pentru  interogarea  unor  servere  DNS.  Programul  va  primi  ca  argument  din  
+linia  de comanda un nume de domeniu sau o adresa IP si va afisa o serie de informatii despre acesta / aceasta.  
+Pentru a obtine informatiile se va interoga serverul de DNS, folosind UDP sau TCP ca protocol de transport,  si
+formandu-se mesaje de interogare dupa cum se specifica in sectiunea 4.1 din RFC 1035
+
+===========================================================================================================
+
+											  IMPLEMENTARE
+
+===========================================================================================================
+
+	Initial am preluat parametrii dati ca argument in linia de comanda pentru a vedea hostname-ul de interogat
+si tipul inregistrarii dorite. Dupa am parcurs fisierul de configurare si am salvat serverele DNS disponibile
+intr-un vector de vectori de char-uri. (mai intai am parcurs fisierul pentru a vedea cate servere avem disponibile
+si dupa l-am reluat si am facut citirea propriu zisa). Dupa, in functie de tipul de interogare dorita, am apelat
+functia 'dns_interogation' cu parametrii corespunzatori. In cadrul acestei functii am implementat urmatoarele lucruri:
+	- am declarat doi pointeri la structuri de tip dns_header_t, respectiv dns_question_t pe care i-am initializat cu NULL.
+	- am deschis un socket UDP pentru a realiza transferul de date intre client si serverul DNS.
+	- cu un for am parcurs fiecare server DNS disponibil, iar in caz ca functia recvfrom intorcea eroare sau 0
+se trecea la urmatorul server disponibil din lista
+	- am configurat adresele pentru structura de tip sockaddr_in (adresa IP, portul 53, familia AF_INET).
+	- cu pointerul 'header' parcurg initial bufferul(string-ul ce trebuie trimis la server) si atribui
+fiecarui camp din structura de tip dns_header_t datele corespunzatoare( RD-ul setat la 1, id-ul 1 si numarul de interogari 1)
+ 	- dupa, cu pointerul qname(ce reprezinta numele interogarii), am sarit peste primele *dimensiunea structurii dns_header_t*
+ caractere. Apoi am apelat functia convert_name care face conversia din hostname-ul primit ca si parametru in dns host-name
+ex: www.google.com -> 3www6google3com0. Functia functioneaza in felul urmator: se adauga inca un punct la finalul buffer-ului
+primit ca parametru ca sirul nou format sa aiba si valoarea 0 pusa la final. Apoi se parcurge sirul caracter cu caracter, iar acolo unde se gaseste caracterul '.', acesta se inlocuieste
+cu numarul de caractere parcurse pana atunci pana la intalnirea sa. La final, se adauga si caracterul '\0' pentru a termina stringul.
+Astfel, se construieste un string nou ce va avea structura dorita de RFC pentru qname. 
+	- cu pointerul la structura de tip dns_question_t se sare peste primele *header_size + qname* caractere si se atribuie campurilor
+din structura tipul si clasa interogarii.
+	- in final, se trimite bufferul astfel creat prin socketul UDP catre serverul de DNS
+	- apoi se incearca primirea de raspunsuri de la serverul DNS. In caz ca nu se primeste nimic, sau se intoarce o eroare,
+se trece la urmatorul server DNS. In caz de succes, se concateneaza la fisierul 'message.log' bufferul trimis catre server
+in format hexazecimal. 
+	- se inchid toti pointerii de fisiere si se inchide socketul deschis
